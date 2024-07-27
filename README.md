@@ -68,9 +68,9 @@ You can also use `template` tag instead of `noscript`.
 
 ```html
 <!DOCTYPE html>
-<script defer src="../index.js"></script>
+<script defer src="https://unpkg.com/vue-sfc-in-html"></script>
 <body>
-  <template type="vue-sfc" src="./example/vue/test.vue" mount="#app"></template>
+  <noscript type="vue-sfc" src="./example/vue/test.vue" mount="#app"></noscript>
   <div id="app"></div>
 </body>
 ```
