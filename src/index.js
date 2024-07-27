@@ -95,7 +95,21 @@ async function makeComponent(el) {
     if (el.hasAttribute('src')) {
       vueSource = await fetch(el.getAttribute('src')).then(res => res.text());
     }
-    return [getBlobURL(transformVueSFC(vueSource, moduleName, el.getAttribute('mount'))), module];
+
+    // TODO 使用更好的替代方案
+    const imageImportRegex = /import\s+([^\s]+)\s+from\s+['"](.+\.(png|jpg|jpeg|gif|bmp|webp))['"]/g;
+    const imageMap = {};
+    const imgId = 'img_' + generateID();
+    let imgIndex = 0;
+    const src = el.getAttribute('src');
+    const absSrc = src ? new URL(src, location.href).href : location.href;
+    vueSource = vueSource.replace(imageImportRegex, (m, g1, g2) => {
+      const imgIdentifier = `${imgId}_${imgIndex++}`;
+      imageMap[imgIdentifier] = `data:text/javascript;base64,${toBase64(`export default '${new URL(g2, absSrc).href}'`)}`;
+      return `import ${g1} from '${imgIdentifier}'; // ${m}`;
+    });
+    
+    return [getBlobURL(transformVueSFC(vueSource, moduleName, el.getAttribute('mount'))), module, imageMap];
   }
   return [];
 }
@@ -110,12 +124,15 @@ async function setup() {
 
   await Promise.all(
     [...components].map(async (component) => {
-      const [url, module] = await makeComponent(component);
+      const [url, module, imageMap] = await makeComponent(component);
       if(component.hasAttribute('mount')) {
         mount.push([module, component.getAttribute('mount')]);
       }
       if(url) {
         importMap[module] = url;
+      }
+      if (imageMap) {
+        Object.assign(importMap, imageMap);
       }
     })
   );
