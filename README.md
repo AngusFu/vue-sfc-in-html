@@ -1,11 +1,11 @@
 # NoScript SFC
 
-Load vue3 SFC component with inline `<noscript>` tag. Funny :-) :Yeah:
+Load vue3 SFC component with inline `<noscript>` or `<template>` tag. Funny :-) :Yeah:
 
 ```html
 <!DOCTYPE html>
 <script defer src="https://unpkg.com/vue-sfc-in-html"></script>
-<noscript type="vue-sfc" component="MyComponent" mount="#app">
+<noscript vue name="MyComponent" mount="#app">
   <script>
     export default {
       data() {
@@ -37,7 +37,7 @@ You can also use `template` tag instead of `noscript`.
 ```html
 <!DOCTYPE html>
 <script defer src="https://unpkg.com/vue-sfc-in-html"></script>
-<template type="vue-sfc" component="MyComponent" mount="#app">
+<template vue name="MyComponent" mount="#app">
   <script>
     export default {
       data() {
@@ -70,7 +70,7 @@ You can also use `template` tag instead of `noscript`.
 <!DOCTYPE html>
 <script defer src="https://unpkg.com/vue-sfc-in-html"></script>
 <body>
-  <noscript type="vue-sfc" src="./example/vue/test.vue" mount="#app"></noscript>
+  <noscript vue src="./example/vue/test.vue" mount="#app"></noscript>
   <div id="app"></div>
 </body>
 ```

@@ -84,7 +84,7 @@ const map = {
 };
 
 async function makeComponent(el) {
-  const module = el.getAttribute('component') || generateID();
+  const module = el.getAttribute('name') || el.getAttribute('component') || generateID();
   let moduleName = module;
   if(!/\.vue$/.test(module)) {
     moduleName += '.vue';
@@ -117,7 +117,7 @@ async function makeComponent(el) {
 const currentScript = document.currentScript || document.querySelector('script');
 
 async function setup() {
-  const components = document.querySelectorAll('noscript[type="vue-sfc"], template[type="vue-sfc"]');
+  const components = document.querySelectorAll('noscript[vue], template[vue], noscript[type="vue-sfc"], template[type="vue-sfc"]');
   const importMap = {};
   let mount = [];
 
