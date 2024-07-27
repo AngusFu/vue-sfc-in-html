@@ -97,7 +97,7 @@ async function makeComponent(el) {
     }
 
     // TODO 使用更好的替代方案
-    const imageImportRegex = /import\s+([^\s]+)\s+from\s+['"](.+\.(png|jpg|jpeg|gif|bmp|webp))['"]/g;
+    const imageImportRegex = /import\s+([^\s]+)\s+from\s+['"](.+\.(png|jpg|jpeg|gif|bmp|webp|svg))['"]/g;
     const imageMap = {};
     const imgId = 'img_' + generateID();
     let imgIndex = 0;
