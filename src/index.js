@@ -83,35 +83,43 @@ const map = {
   scopes: { },
 };
 
-function makeComponent(component) {
-  const module = component.getAttribute('component');
+async function makeComponent(el) {
+  const module = el.getAttribute('component');
   let moduleName = module;
   if(!/\.vue$/.test(module)) {
     moduleName += '.vue';
   }
-  component.setAttribute('module', moduleName);
+  el.setAttribute('module', moduleName);
   if(module) {
-    return [getBlobURL(transformVueSFC(component.innerHTML, moduleName, component.getAttribute('mount'))), module];
+    let vueSource = el.innerHTML;
+    if (el.hasAttribute('src')) {
+      vueSource = await fetch(el.getAttribute('src')).then(res => res.text());
+    }
+    return [getBlobURL(transformVueSFC(vueSource, moduleName, el.getAttribute('mount'))), module];
   }
   return [];
 }
 
 const currentScript = document.currentScript || document.querySelector('script');
 
-function setup() {
+async function setup() {
   const components = document.querySelectorAll('noscript[type="vue-sfc"]');
   const importMap = {};
   let mount = [];
 
-  [...components].forEach((component) => {
-    const [url, module] = makeComponent(component);
-    if(component.hasAttribute('mount')) {
-      mount.push([module, component.getAttribute('mount')]);
-    }
-    if(url) {
-      importMap[module] = url;
-    }
-  });
+
+  await Promise.all(
+    [...components].map(async (component) => {
+      const [url, module] = await makeComponent(component);
+      if(component.hasAttribute('mount')) {
+        mount.push([module, component.getAttribute('mount')]);
+      }
+      if(url) {
+        importMap[module] = url;
+      }
+    })
+  );
+
   const importMapEl = document.querySelector('script[type="importmap"]');
   if(importMapEl) {
     // map = JSON.parse(mapEl.innerHTML);
