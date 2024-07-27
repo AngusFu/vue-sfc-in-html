@@ -11,6 +11,9 @@
     "build": "esbuild src/index.js --bundle --outfile=index.js --minify",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "files": [
+    "./index.js"
+  ],
   "author": "akira-cn",
   "license": "MIT",
   "devDependencies": {
