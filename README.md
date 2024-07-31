@@ -6,14 +6,9 @@ Load vue3 SFC component with inline `<noscript>` or `<template>` tag. Funny :-) 
 <!DOCTYPE html>
 <script defer src="https://unpkg.com/vue-sfc-in-html"></script>
 <noscript vue name="MyComponent" mount="#app">
-  <script>
-    export default {
-      data() {
-        return {
-          count: 0,
-        };
-      },
-    };
+  <script setup>
+    import { ref } from "vue";
+    const count = ref(0);
   </script>
 
   <template>
@@ -38,14 +33,9 @@ You can also use `template` tag instead of `noscript`.
 <!DOCTYPE html>
 <script defer src="https://unpkg.com/vue-sfc-in-html"></script>
 <template vue name="MyComponent" mount="#app">
-  <script>
-    export default {
-      data() {
-        return {
-          count: 0,
-        };
-      },
-    };
+  <script setup>
+    import { ref } from "vue";
+    const count = ref(0);
   </script>
 
   <template>
@@ -70,7 +60,12 @@ You can also use `template` tag instead of `noscript`.
 <!DOCTYPE html>
 <script defer src="https://unpkg.com/vue-sfc-in-html"></script>
 <body>
-  <noscript vue src="./example/vue/test.vue" mount="#app"></noscript>
+  <template
+    vue
+    name="MyComponent"
+    src="https://raw.githubusercontent.com/AngusFu/vue-sfc-in-html/fork-main/example/vue/test.vue"
+    mount="#app"
+  ></template>
   <div id="app"></div>
 </body>
 ```
