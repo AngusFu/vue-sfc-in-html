@@ -1,20 +1,28 @@
-import * as compiler from "https://unpkg.com/@vue/compiler-sfc/dist/compiler-sfc.esm-browser.js";
+import * as compiler from "@vue/compiler-sfc";
 
-function toBase64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
+function blobToDataUri(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
 }
-function generateID() {
-  return Math.random().toString(36).slice(2, 12);
+function toJsDataUri(raw) {
+  return blobToDataUri(new Blob([raw], { type: "application/javascript" }));
+}
+function toJsonDataUri(obj) {
+  return blobToDataUri(
+    new Blob([JSON.stringify(obj)], { type: "application/json" })
+  );
+}
+async function toSourcemapComment(obj) {
+  return `\n//# sourceMappingURL=${await toJsonDataUri(obj)}`;
 }
 
-function toDataUri(text) {
-  return `data:text/javascript;base64,${toBase64(text)}`;
-}
-
-function transformVueSFC(source, filename) {
+async function transformVueSFC(id, source, filename) {
   const { descriptor, errors } = compiler.parse(source, { filename });
   if (errors.length) throw new Error(errors.toString());
-  const id = generateID();
+
   const hasScoped = descriptor.styles.some((e) => e.scoped);
   const scopeId = hasScoped ? `data-v-${id}` : undefined;
   const templateOptions = {
@@ -34,11 +42,7 @@ function transformVueSFC(source, filename) {
     sourceMap: true,
   });
   if (script.map) {
-    script.content = `${
-      script.content
-    }\n//# sourceMappingURL=data:application/json;base64,${toBase64(
-      JSON.stringify(script.map)
-    )}`;
+    script.content = `${script.content}${await toSourcemapComment(script.map)}`;
   }
   const template = compiler.compileTemplate({
     ...templateOptions,
@@ -51,11 +55,7 @@ function transformVueSFC(source, filename) {
   });
   if (template.map) {
     template.map.sources[0] = `${template.map.sources[0]}?template`;
-    template.code = `${
-      template.code
-    }\n//# sourceMappingURL=data:application/json;base64,${toBase64(
-      JSON.stringify(template.map)
-    )}`;
+    template.code = `${template.code}${await toSourcemapComment(template.map)}`;
   }
   let cssInJS = "";
   if (descriptor.styles) {
@@ -75,8 +75,8 @@ document.body.appendChild(el);}());`;
     }
   }
   const moduleCode = `
-    import script from '${toDataUri(script.content)}';
-    import {render} from '${toDataUri(template.code)}';
+    import script from '${await toJsDataUri(script.content)}';
+    import {render} from '${await toJsDataUri(template.code)}';
     script.render = render;
     ${filename ? `script.__file = '${filename}'` : ""};
     ${scopeId ? `script.__scopeId = '${scopeId}'` : ""};
@@ -88,7 +88,7 @@ document.body.appendChild(el);}());`;
 
 self.onmessage = async function (event) {
   try {
-    const url = toDataUri(await transformVueSFC(...event.data));
+    const url = await toJsDataUri(await transformVueSFC(...event.data));
     self.postMessage(url);
   } catch (e) {}
 };

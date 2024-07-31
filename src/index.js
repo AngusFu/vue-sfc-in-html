@@ -1,12 +1,40 @@
-import workerDataURI from "./compiler.worker.js";
+import rawWorkerContent from "./compiler.worker.js?text";
 
 // https://github.com/WICG/import-maps
 const importmap = {
   imports: {
     vue: "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
+    "@vue/compiler-sfc":
+      "https://unpkg.com/@vue/compiler-sfc/dist/compiler-sfc.esm-browser.js",
   },
   scopes: {},
 };
+
+function generateID() {
+  return Math.random().toString(36).slice(2, 12);
+}
+function blobToDataUri(blob) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function toJsDataUri(raw) {
+  return blobToDataUri(new Blob([raw], { type: "application/javascript" }));
+}
+
+async function createWorker() {
+  const raw = rawWorkerContent.replace(
+    /from\s*(['"])@vue\/compiler-sfc\1/,
+    `from "${importmap.imports["@vue/compiler-sfc"]}"`
+  );
+
+  return new Worker(await toJsDataUri(raw), {
+    type: "module",
+  });
+}
 
 async function makeComponent(el) {
   const module =
@@ -26,98 +54,88 @@ async function makeComponent(el) {
   const imageImportRegex =
     /import\s+([^\s]+)\s+from\s+['"](.+\.(png|jpg|jpeg|gif|bmp|webp|svg))['"]/g;
   const imageMap = {};
+  const promises = [];
   const imgId = "img_" + generateID();
   let imgIndex = 0;
   const src = el.getAttribute("src");
   const absSrc = src ? new URL(src, location.href).href : location.href;
   vueSource = vueSource.replace(imageImportRegex, (m, g1, g2) => {
-    const imgIdentifier = `${imgId}_${imgIndex++}`;
-    imageMap[imgIdentifier] = toDataUri(
-      `export default '${new URL(g2, absSrc).href}'`
+    const identifier = `${imgId}_${imgIndex++}`;
+    promises.push(
+      toJsDataUri(`export default '${new URL(g2, absSrc).href}'`).then(
+        (datauri) => {
+          imageMap[identifier] = datauri;
+        }
+      )
     );
-    return `import ${g1} from '${imgIdentifier}'; // ${m}`;
+    return `import ${g1} from '${identifier}'; // ${m}`;
   });
 
+  await promises;
+
   return [
-    await new Promise((resolve) => {
-      const worker = new Worker(workerDataURI, { type: "module" });
-      worker.postMessage([vueSource, moduleName]);
+    await new Promise(async (resolve) => {
+      const worker = await createWorker();
+      worker.postMessage([generateID(), vueSource, moduleName]);
       worker.onmessage = (e) => resolve(e.data);
     }),
     module,
     imageMap,
   ];
-
-  return [];
 }
 
-const currentScript =
-  document.currentScript || document.querySelector("script");
-
 async function setup() {
-  const components = document.querySelectorAll(
-    'noscript[vue], template[vue], noscript[type="vue-sfc"], template[type="vue-sfc"]'
-  );
-  const importMap = {};
-  let mount = [];
-
-  await Promise.all(
-    [...components].map(async (component) => {
-      const [url, module, imageMap] = await makeComponent(component);
-      if (component.hasAttribute("mount")) {
-        mount.push([module, component.getAttribute("mount")]);
-      }
-      if (url) {
-        importMap[module] = url;
-      }
-      if (imageMap) {
-        Object.assign(importMap, imageMap);
-      }
-    })
-  );
-
-  const importMapEl = document.querySelector('script[type="importmap"]');
-  if (importMapEl) {
+  if (document.querySelector('script[type="importmap"]')) {
     throw new Error(
       'Cannot setup after importmap is set. Use <script type="sfc-importmap"> instead.'
     );
   }
 
   const externalMapEl = document.querySelector('script[type="sfc-importmap"]');
-
   if (externalMapEl) {
     const externalMap = JSON.parse(externalMapEl.textContent);
     Object.assign(importmap.imports, externalMap.imports);
     Object.assign(importmap.scopes, externalMap.scopes);
   }
 
-  Object.assign(importmap.imports, importMap);
+  const components = document.querySelectorAll(
+    'noscript[vue], template[vue], noscript[type="vue-sfc"], template[type="vue-sfc"]'
+  );
+  const internalImportMap = {};
+  const mountingInfo = [];
+  await Promise.all(
+    [...components].map(async (component) => {
+      const [url, module, imageMap] = await makeComponent(component);
+      if (component.hasAttribute("mount")) {
+        mountingInfo.push([module, component.getAttribute("mount")]);
+      }
+      if (url) {
+        internalImportMap[module] = url;
+      }
+      if (imageMap) {
+        Object.assign(internalImportMap, imageMap);
+      }
+    })
+  );
 
-  const mapEl = document.createElement("script");
-  mapEl.setAttribute("type", "importmap");
-  mapEl.textContent = JSON.stringify(importmap);
-  currentScript.after(mapEl);
+  Object.assign(importmap.imports, internalImportMap);
 
-  if (mount) {
+  const script = document.createElement("script");
+  script.setAttribute("type", "importmap");
+  script.textContent = JSON.stringify(importmap);
+  (document.currentScript || document.querySelector("script")).after(script);
+
+  if (mountingInfo) {
     const script = document.createElement("script");
-    script.setAttribute("type", "module");
-    const apps = mount.map(
+    const apps = mountingInfo.map(
       (item, index) =>
         `import App${index} from '${item[0]}'; createApp(App${index}).mount('${item[1]}');`
     );
+
+    script.setAttribute("type", "module");
     script.innerHTML = [`import { createApp } from 'vue';`, ...apps].join("\n");
     document.body.appendChild(script);
   }
 }
 
 setup();
-
-function generateID() {
-  return Math.random().toString(36).slice(2, 12);
-}
-function toBase64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
-}
-function toDataUri(text) {
-  return `data:text/javascript;base64,${toBase64(text)}`;
-}
