@@ -8,7 +8,7 @@
     "url": "https://github.com/xitu/noscript-sfc"
   },
   "scripts": {
-    "build": "esbuild src/index.js --bundle --outfile=index.js --minify",
+    "build": "esbuild src/index.js --loader:.worker.js=dataurl --bundle --outfile=index.js --minify",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
@@ -17,7 +17,6 @@
   "author": "akira-cn",
   "license": "MIT",
   "devDependencies": {
-    "@vue/compiler-sfc": "^3.2.31",
     "esbuild": "^0.14.24",
     "eslint": "^8.10.0",
     "eslint-config-next": "^12.1.0"
