@@ -6,6 +6,7 @@ const importmap = {
     vue: "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
     "@vue/compiler-sfc":
       "https://unpkg.com/@vue/compiler-sfc/dist/compiler-sfc.esm-browser.js",
+    "@swc/wasm-web": "https://unpkg.com/@swc/wasm-web/wasm.js",
   },
   scopes: {},
 };
@@ -25,11 +26,25 @@ function toJsDataUri(raw) {
   return blobToDataUri(new Blob([raw], { type: "application/javascript" }));
 }
 
+const replaceWorkerPkg = (raw, pkgs) => {
+  return pkgs.reduce((acc, pkg) => {
+    return acc
+      .replace(
+        RegExp(`from\\s*(['"])${pkg}\\1`, "g"),
+        `from "${importmap.imports[pkg]}"`
+      )
+      .replace(
+        RegExp(`import\\((['"])${pkg}\\1\\)`, "g"),
+        `import("${importmap.imports[pkg]}")`
+      );
+  }, raw);
+};
+
 async function createWorker() {
-  const raw = rawWorkerContent.replace(
-    /from\s*(['"])@vue\/compiler-sfc\1/,
-    `from "${importmap.imports["@vue/compiler-sfc"]}"`
-  );
+  const raw = replaceWorkerPkg(rawWorkerContent, [
+    "@vue/compiler-sfc",
+    "@swc/wasm-web",
+  ]);
 
   return new Worker(await toJsDataUri(raw), {
     type: "module",
@@ -77,7 +92,13 @@ async function makeComponent(el) {
     await new Promise(async (resolve) => {
       const worker = await createWorker();
       worker.postMessage([generateID(), vueSource, moduleName]);
-      worker.onmessage = (e) => resolve(e.data);
+      worker.onmessage = (e) => {
+        if (e.data.type === "transform") {
+          resolve(e.data.data);
+        } else if (e.data.type === "console") {
+          console[e.data.level](...e.data.args);
+        }
+      };
     }),
     module,
     imageMap,

@@ -12,12 +12,45 @@ function toJsDataUri(raw) {
 }
 function toJsonDataUri(obj) {
   return blobToDataUri(
-    new Blob([JSON.stringify(obj)], { type: "application/json" })
+    new Blob([typeof obj === "string" ? obj : JSON.stringify(obj)], {
+      type: "application/json",
+    })
   );
 }
 async function toSourcemapComment(obj) {
   return `\n//# sourceMappingURL=${await toJsonDataUri(obj)}`;
 }
+
+const console = {
+  log(...args) {
+    self.postMessage({
+      type: "console",
+      level: "log",
+      args: JSON.parse(JSON.stringify(args)),
+    });
+  },
+  error(...args) {
+    self.postMessage({
+      type: "console",
+      level: "error",
+      args: JSON.parse(JSON.stringify(args)),
+    });
+  },
+  info(...args) {
+    self.postMessage({
+      type: "console",
+      level: "info",
+      args: JSON.parse(JSON.stringify(args)),
+    });
+  },
+  warn(...args) {
+    self.postMessage({
+      type: "console",
+      level: "warn",
+      args: JSON.parse(JSON.stringify(args)),
+    });
+  },
+};
 
 async function transformVueSFC(id, source, filename) {
   const { descriptor, errors } = compiler.parse(source, { filename });
@@ -41,9 +74,30 @@ async function transformVueSFC(id, source, filename) {
     templateOptions,
     sourceMap: true,
   });
-  if (script.map) {
+  const isTs = (descriptor.script || descriptor.scriptSetup).lang === "ts";
+  if (isTs) {
+    const swc = await import("@swc/wasm-web");
+    await swc.default();
+
+    const { code, map } = await swc.transform(
+      `${script.content}${await toSourcemapComment(script.map)}`,
+      {
+        filename: descriptor.filename,
+        sourceMaps: true,
+        inputSourceMap: true,
+        jsc: {
+          parser: {
+            syntax: "typescript",
+          },
+          transform: {},
+        },
+      }
+    );
+    script.content = `${code}${await toSourcemapComment(map)}`;
+  } else if (script.map) {
     script.content = `${script.content}${await toSourcemapComment(script.map)}`;
   }
+
   const template = compiler.compileTemplate({
     ...templateOptions,
     sourceMap: true,
@@ -89,6 +143,8 @@ document.body.appendChild(el);}());`;
 self.onmessage = async function (event) {
   try {
     const url = await toJsDataUri(await transformVueSFC(...event.data));
-    self.postMessage(url);
-  } catch (e) {}
+    self.postMessage({ type: "transform", data: url });
+  } catch (e) {
+    console.error(e.message);
+  }
 };
