@@ -1,24 +1,19 @@
 import * as compiler from "@vue/compiler-sfc";
 
-function blobToDataUri(blob) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
+function toBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
 }
+
 function toJsDataUri(raw) {
-  return blobToDataUri(new Blob([raw], { type: "application/javascript" }));
+  return `data:application/javascript;base64,${toBase64(raw)}`;
 }
 function toJsonDataUri(obj) {
-  return blobToDataUri(
-    new Blob([typeof obj === "string" ? obj : JSON.stringify(obj)], {
-      type: "application/json",
-    })
-  );
+  return `data:application/json;base64,${toBase64(
+    typeof obj === "string" ? obj : JSON.stringify(obj)
+  )}`;
 }
-async function toSourcemapComment(obj) {
-  return `\n//# sourceMappingURL=${await toJsonDataUri(obj)}`;
+function toSourcemapComment(obj) {
+  return `\n//# sourceMappingURL=${toJsonDataUri(obj)}`;
 }
 
 const console = {
@@ -80,7 +75,7 @@ async function transformVueSFC(id, source, filename) {
     await swc.default();
 
     const { code, map } = await swc.transform(
-      `${script.content}${await toSourcemapComment(script.map)}`,
+      `${script.content}${toSourcemapComment(script.map)}`,
       {
         filename: descriptor.filename,
         sourceMaps: true,
@@ -93,9 +88,9 @@ async function transformVueSFC(id, source, filename) {
         },
       }
     );
-    script.content = `${code}${await toSourcemapComment(map)}`;
+    script.content = `${code}${toSourcemapComment(map)}`;
   } else if (script.map) {
-    script.content = `${script.content}${await toSourcemapComment(script.map)}`;
+    script.content = `${script.content}${toSourcemapComment(script.map)}`;
   }
 
   const template = compiler.compileTemplate({
@@ -109,7 +104,7 @@ async function transformVueSFC(id, source, filename) {
   });
   if (template.map) {
     template.map.sources[0] = `${template.map.sources[0]}?template`;
-    template.code = `${template.code}${await toSourcemapComment(template.map)}`;
+    template.code = `${template.code}${toSourcemapComment(template.map)}`;
   }
   let cssInJS = "";
   if (descriptor.styles) {
@@ -129,8 +124,8 @@ document.body.appendChild(el);}());`;
     }
   }
   const moduleCode = `
-    import script from '${await toJsDataUri(script.content)}';
-    import {render} from '${await toJsDataUri(template.code)}';
+    import script from '${toJsDataUri(script.content)}';
+    import {render} from '${toJsDataUri(template.code)}';
     script.render = render;
     ${filename ? `script.__file = '${filename}'` : ""};
     ${scopeId ? `script.__scopeId = '${scopeId}'` : ""};
@@ -142,7 +137,7 @@ document.body.appendChild(el);}());`;
 
 self.onmessage = async function (event) {
   try {
-    const url = await toJsDataUri(await transformVueSFC(...event.data));
+    const url = toJsDataUri(await transformVueSFC(...event.data));
     self.postMessage({ type: "transform", data: url });
   } catch (e) {
     console.error(e.message);

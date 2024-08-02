@@ -14,16 +14,12 @@ const importmap = {
 function generateID() {
   return Math.random().toString(36).slice(2, 12);
 }
-function blobToDataUri(blob) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
+function toBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
 }
 
 function toJsDataUri(raw) {
-  return blobToDataUri(new Blob([raw], { type: "application/javascript" }));
+  return `data:application/javascript;base64,${toBase64(raw)}`;
 }
 
 const replaceWorkerPkg = (raw, pkgs) => {
@@ -46,7 +42,7 @@ async function createWorker() {
     "@swc/wasm-web",
   ]);
 
-  return new Worker(await toJsDataUri(raw), {
+  return new Worker(toJsDataUri(raw), {
     type: "module",
   });
 }
@@ -69,24 +65,17 @@ async function makeComponent(el) {
   const imageImportRegex =
     /import\s+([^\s]+)\s+from\s+['"](.+\.(png|jpg|jpeg|gif|bmp|webp|svg))['"]/g;
   const imageMap = {};
-  const promises = [];
   const imgId = "img_" + generateID();
   let imgIndex = 0;
   const src = el.getAttribute("src");
   const absSrc = src ? new URL(src, location.href).href : location.href;
   vueSource = vueSource.replace(imageImportRegex, (m, g1, g2) => {
     const identifier = `${imgId}_${imgIndex++}`;
-    promises.push(
-      toJsDataUri(`export default '${new URL(g2, absSrc).href}'`).then(
-        (datauri) => {
-          imageMap[identifier] = datauri;
-        }
-      )
+    imageMap[identifier] = toJsDataUri(
+      `export default '${new URL(g2, absSrc).href}'`
     );
     return `import ${g1} from '${identifier}'; // ${m}`;
   });
-
-  await promises;
 
   return [
     await new Promise(async (resolve) => {
