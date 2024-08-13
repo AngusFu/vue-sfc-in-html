@@ -60,6 +60,14 @@ You can also use `template` tag instead of `noscript`.
 <!DOCTYPE html>
 <script defer src="https://unpkg.com/vue-sfc-in-html"></script>
 <body>
+  <script type="sfc-importmap">
+    {
+      "imports": {
+        "@tanstack/vue-virtual": "https://esm.sh/@tanstack/vue-virtual"
+      }
+    }
+  </script>
+
   <template
     vue
     name="MyComponent"
