@@ -72,7 +72,7 @@ async function transformVueSFC(id, source, filename) {
   const isTs = (descriptor.script || descriptor.scriptSetup).lang === "ts";
   if (isTs) {
     const swc = await import("@swc/wasm-web");
-    await swc.default();
+    await swc.default({ });
 
     const { code, map } = await swc.transform(
       `${script.content}${toSourcemapComment(script.map)}`,
